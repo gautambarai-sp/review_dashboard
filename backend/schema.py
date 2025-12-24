@@ -1,18 +1,11 @@
-# ----------------------------
-# Rating-based sentiment
-# ----------------------------
 def rating_to_sentiment(rating: int) -> str:
     if rating >= 4:
         return "positive"
     elif rating == 3:
         return "neutral"
-    else:
-        return "negative"
+    return "negative"
 
 
-# ----------------------------
-# Text-based sentiment (rule-based MVP)
-# ----------------------------
 POSITIVE_WORDS = [
     "good", "great", "amazing", "love", "tasty",
     "quick", "friendly", "excellent", "perfect"
@@ -25,52 +18,39 @@ NEGATIVE_WORDS = [
 
 
 def text_to_sentiment(text: str) -> str:
-    pos = sum(word in text for word in POSITIVE_WORDS)
-    neg = sum(word in text for word in NEGATIVE_WORDS)
-
+    pos = sum(w in text for w in POSITIVE_WORDS)
+    neg = sum(w in text for w in NEGATIVE_WORDS)
     if pos > neg:
         return "positive"
     elif neg > pos:
         return "negative"
-    else:
-        return "neutral"
+    return "neutral"
 
 
-# ----------------------------
-# Hybrid sentiment resolver
-# ----------------------------
-def hybrid_sentiment(rating_sentiment: str, text_sentiment: str) -> str:
+def final_text_sentiment(clean_text, rule_sentiment, ml_sentiment):
+    if ml_sentiment in ["positive", "negative"]:
+        return ml_sentiment
+    return rule_sentiment
+
+
+def hybrid_sentiment(rating_sentiment, text_sentiment):
     if rating_sentiment == text_sentiment:
         return rating_sentiment
-
-    # Trust text more if it's clearly positive/negative
     if text_sentiment != "neutral":
         return text_sentiment
-
     return rating_sentiment
 
 
-# ----------------------------
-# Confidence score engine
-# ----------------------------
-def confidence_score(
-    review_text: str,
-    verified: bool,
-    rating_sentiment: str,
-    text_sentiment: str
-) -> int:
-
+def confidence_score(review_text, verified, rating_sentiment, text_sentiment):
     score = 50
     words = review_text.split()
 
     if verified:
         score += 20
-
     if len(words) > 20:
         score += 10
     elif len(words) < 5:
         score -= 20
-
     if rating_sentiment == text_sentiment:
         score += 10
     else:
