@@ -1,0 +1,6 @@
+review_id,restaurant_name,rating,review_text,review_date,platform,verified_visit
+R001,Sagar Chinese,5,"Amazing taste and quick service",2024-12-01,Google,TRUE
+R002,Sagar Chinese,2,"Food was cold and delivery was late",2024-12-02,Google,FALSE
+R003,Sagar Chinese,4,"Loved the noodles but seating is tight",2024-12-03,Internal,TRUE
+R004,Sagar Chinese,1,"Worst experience",2024-12-03,Internal,FALSE
+R005,Sagar Chinese,3,"Food was okay but staff was slow",2024-12-04,Google,TRUE
