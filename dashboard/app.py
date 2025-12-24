@@ -1,6 +1,25 @@
+import sys
+import os
+
+# --------------------------------------------------
+# Ensure project root is in Python path
+# --------------------------------------------------
+PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")
+)
+
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
+# --------------------------------------------------
+# Standard imports
+# --------------------------------------------------
 import streamlit as st
 import pandas as pd
 
+# --------------------------------------------------
+# Internal imports (NOW SAFE)
+# --------------------------------------------------
 from backend.preprocessing import clean_text
 from backend.schema import (
     rating_to_sentiment,
@@ -9,6 +28,9 @@ from backend.schema import (
     confidence_score
 )
 
+# --------------------------------------------------
+# Streamlit App Config
+# --------------------------------------------------
 st.set_page_config(
     page_title="AI Review Dashboard",
     layout="wide"
@@ -17,14 +39,17 @@ st.set_page_config(
 st.title("🍽️ Restaurant Review Intelligence Dashboard")
 st.markdown("Upload your restaurant reviews to generate insights.")
 
+# --------------------------------------------------
+# File Upload
+# --------------------------------------------------
 uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
 
-    # ----------------------------
+    # --------------------------------------------------
     # Preprocessing
-    # ----------------------------
+    # --------------------------------------------------
     df["clean_text"] = df["review_text"].apply(clean_text)
 
     df["rating_sentiment"] = df["rating"].apply(rating_to_sentiment)
@@ -48,9 +73,9 @@ if uploaded_file:
         axis=1
     )
 
-    # ----------------------------
-    # Overview Section
-    # ----------------------------
+    # --------------------------------------------------
+    # Overview Metrics
+    # --------------------------------------------------
     st.subheader("📊 Restaurant Performance Overview")
 
     col1, col2, col3 = st.columns(3)
@@ -65,17 +90,17 @@ if uploaded_file:
         high_conf = (df["confidence_score"] >= 80).mean() * 100
         st.metric("High Confidence Reviews (%)", round(high_conf, 1))
 
-    # ----------------------------
+    # --------------------------------------------------
     # Rating Trend
-    # ----------------------------
+    # --------------------------------------------------
     st.subheader("📈 Rating Trend Over Time")
     df["review_date"] = pd.to_datetime(df["review_date"])
     trend = df.groupby("review_date")["rating"].mean()
     st.line_chart(trend)
 
-    # ----------------------------
+    # --------------------------------------------------
     # Complaints Section
-    # ----------------------------
+    # --------------------------------------------------
     st.subheader("⚠️ High-Confidence Complaints")
 
     complaints = df[
@@ -83,7 +108,7 @@ if uploaded_file:
         (df["confidence_score"] >= 60)
     ][["review_text", "confidence_score"]]
 
-    if len(complaints) == 0:
+    if complaints.empty:
         st.write("No high-confidence complaints found.")
     else:
         for _, row in complaints.iterrows():
@@ -92,8 +117,8 @@ if uploaded_file:
                 f"(Confidence: {row['confidence_score']})"
             )
 
-    # ----------------------------
+    # --------------------------------------------------
     # Raw Data Viewer
-    # ----------------------------
+    # --------------------------------------------------
     with st.expander("🔍 View Processed Review Data"):
         st.dataframe(df)
