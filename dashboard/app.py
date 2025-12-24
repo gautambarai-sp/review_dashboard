@@ -1,59 +1,39 @@
-import sys
-import os
+import sys, os
+sys.path.append(os.path.abspath(""))
 
-# --------------------------------------------------
-# Ensure project root is in Python path
-# --------------------------------------------------
-PROJECT_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..")
-)
-
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
-
-# --------------------------------------------------
-# Standard imports
-# --------------------------------------------------
 import streamlit as st
 import pandas as pd
 
-# --------------------------------------------------
-# Internal imports (NOW SAFE)
-# --------------------------------------------------
 from backend.preprocessing import clean_text
-from backend.schema import (
-    rating_to_sentiment,
-    text_to_sentiment,
-    hybrid_sentiment,
-    confidence_score
-)
+from backend.schema import *
+from backend.aspects import *
+from backend.responses import generate_response
+from backend.learning import log_response_feedback
+from backend.prioritization import compute_priority_scores
+from backend.ml_sentiment import ml_text_sentiment
 
-# --------------------------------------------------
-# Streamlit App Config
-# --------------------------------------------------
-st.set_page_config(
-    page_title="AI Review Dashboard",
-    layout="wide"
-)
+st.set_page_config(page_title="Review Intelligence", layout="wide")
 
-st.title("🍽️ Restaurant Review Intelligence Dashboard")
-st.markdown("Upload your restaurant reviews to generate insights.")
+st.markdown("<h1>Review Intelligence</h1>", unsafe_allow_html=True)
 
-# --------------------------------------------------
-# File Upload
-# --------------------------------------------------
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+uploaded = st.file_uploader("Upload Reviews CSV", type=["csv"])
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-
-    # --------------------------------------------------
-    # Preprocessing
-    # --------------------------------------------------
+if uploaded:
+    df = pd.read_csv(uploaded)
+    df["review_date"] = pd.to_datetime(df["review_date"])
     df["clean_text"] = df["review_text"].apply(clean_text)
 
     df["rating_sentiment"] = df["rating"].apply(rating_to_sentiment)
-    df["text_sentiment"] = df["clean_text"].apply(text_to_sentiment)
+    df["rule_text_sentiment"] = df["clean_text"].apply(text_to_sentiment)
+    df["ml_text_sentiment"] = df["clean_text"].apply(ml_text_sentiment)
+    df["text_sentiment"] = df.apply(
+        lambda x: final_text_sentiment(
+            x["clean_text"],
+            x["rule_text_sentiment"],
+            x["ml_text_sentiment"]
+        ),
+        axis=1
+    )
 
     df["sentiment"] = df.apply(
         lambda x: hybrid_sentiment(
@@ -73,52 +53,29 @@ if uploaded_file:
         axis=1
     )
 
-    # --------------------------------------------------
-    # Overview Metrics
-    # --------------------------------------------------
-    st.subheader("📊 Restaurant Performance Overview")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Total Reviews", len(df))
-
-    with col2:
-        st.metric("Average Rating", round(df["rating"].mean(), 2))
-
-    with col3:
-        high_conf = (df["confidence_score"] >= 80).mean() * 100
-        st.metric("High Confidence Reviews (%)", round(high_conf, 1))
-
-    # --------------------------------------------------
-    # Rating Trend
-    # --------------------------------------------------
-    st.subheader("📈 Rating Trend Over Time")
-    df["review_date"] = pd.to_datetime(df["review_date"])
-    trend = df.groupby("review_date")["rating"].mean()
-    st.line_chart(trend)
-
-    # --------------------------------------------------
-    # Complaints Section
-    # --------------------------------------------------
-    st.subheader("⚠️ High-Confidence Complaints")
+    df["aspects"] = df["clean_text"].apply(detect_aspects)
+    df = df.explode("aspects")
+    df["issue"] = df.apply(
+        lambda x: extract_issue(x["aspects"], x["clean_text"])
+        if pd.notnull(x["aspects"]) else None,
+        axis=1
+    )
 
     complaints = df[
         (df["sentiment"] == "negative") &
         (df["confidence_score"] >= 60)
-    ][["review_text", "confidence_score"]]
+    ]
 
-    if complaints.empty:
-        st.write("No high-confidence complaints found.")
-    else:
-        for _, row in complaints.iterrows():
-            st.write(
-                f"• {row['review_text']} "
-                f"(Confidence: {row['confidence_score']})"
-            )
+    priority = compute_priority_scores(complaints)
 
-    # --------------------------------------------------
-    # Raw Data Viewer
-    # --------------------------------------------------
-    with st.expander("🔍 View Processed Review Data"):
-        st.dataframe(df)
+    st.subheader("🚑 Fix This First")
+    st.error(priority.iloc[0]["issue"])
+
+    st.subheader("💬 Response Assistant")
+    row = complaints.iloc[0]
+    response = generate_response(row["aspects"], "negative", row["issue"])
+    edited = st.text_area("Response", response)
+
+    if st.button("Accept"):
+        log_response_feedback(row["review_id"], row["aspects"], row["issue"], edited, "accepted")
+        st.success("Saved")
