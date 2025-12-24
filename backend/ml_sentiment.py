@@ -1,13 +1,28 @@
-from transformers import pipeline
+try:
+    from transformers import pipeline
+    _sentiment_pipeline = pipeline(
+        "sentiment-analysis",
+        model="distilbert-base-uncased-finetuned-sst-2-english"
+    )
+    TRANSFORMERS_AVAILABLE = True
+except Exception:
+    TRANSFORMERS_AVAILABLE = False
+    _sentiment_pipeline = None
 
-pipe = pipeline(
-    "sentiment-analysis",
-    model="distilbert-base-uncased-finetuned-sst-2-english"
-)
 
-def ml_text_sentiment(text: str):
+def ml_text_sentiment(text: str) -> str:
+    """
+    Safe ML sentiment inference.
+    Falls back to neutral if model is unavailable.
+    """
+    if not TRANSFORMERS_AVAILABLE:
+        return "neutral"
+
+    if not isinstance(text, str) or len(text.strip()) < 3:
+        return "neutral"
+
     try:
-        res = pipe(text[:512])[0]["label"]
-        return "positive" if res == "POSITIVE" else "negative"
-    except:
+        result = _sentiment_pipeline(text[:512])[0]["label"]
+        return "positive" if result == "POSITIVE" else "negative"
+    except Exception:
         return "neutral"
